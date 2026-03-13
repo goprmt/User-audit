@@ -9,7 +9,7 @@ interface RouteParams {
   params: Promise<{ tenantId: string }>;
 }
 
-// GET /api/tenants/[tenantId]/integrations
+// GET /api/clients/[tenantId]/integrations
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const auth = await requireAuth(req);
   if (isAuthError(auth)) return auth;
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ data, error: null });
 }
 
-// POST /api/tenants/[tenantId]/integrations
+// POST /api/clients/[tenantId]/integrations
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const auth = await requireAuth(req);
   if (isAuthError(auth)) return auth;

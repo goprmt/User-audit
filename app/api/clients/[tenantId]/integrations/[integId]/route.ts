@@ -8,7 +8,7 @@ interface RouteParams {
   params: Promise<{ tenantId: string; integId: string }>;
 }
 
-// PUT /api/tenants/[tenantId]/integrations/[integId]
+// PUT /api/clients/[tenantId]/integrations/[integId]
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   const auth = await requireAuth(req);
   if (isAuthError(auth)) return auth;
@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/tenants/[tenantId]/integrations/[integId]
+// DELETE /api/clients/[tenantId]/integrations/[integId]
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const auth = await requireAuth(req);
   if (isAuthError(auth)) return auth;

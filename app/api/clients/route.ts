@@ -3,7 +3,7 @@ import { requireAuth, isAuthError } from "@/lib/auth";
 import { createTenantSchema } from "@/lib/validation";
 import { ZodError } from "zod";
 
-// GET /api/tenants — list all tenants
+// GET /api/clients — list all clients
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (isAuthError(auth)) return auth;
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data, error: null });
 }
 
-// POST /api/tenants — create a new tenant
+// POST /api/clients — create a new client
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (isAuthError(auth)) return auth;
