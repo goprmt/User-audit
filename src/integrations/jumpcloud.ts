@@ -23,22 +23,30 @@ export class JumpCloudAdapter implements IntegrationAdapter {
 
   async fetchUsers(
     apiKey: string,
-    baseUrl: string = DEFAULT_BASE_URL
+    baseUrl: string = DEFAULT_BASE_URL,
+    extraConfig: Record<string, unknown> = {}
   ): Promise<NormalizedUser[]> {
     const allUsers: NormalizedUser[] = [];
     let skip = 0;
     let total = Infinity;
+
+    const headers: Record<string, string> = {
+      "x-api-key": apiKey,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+
+    const orgId = extraConfig.orgId;
+    if (typeof orgId === "string" && orgId.length > 0) {
+      headers["x-org-id"] = orgId;
+    }
 
     while (skip < total) {
       const url = `${baseUrl}/api/systemusers?limit=${PAGE_SIZE}&skip=${skip}`;
 
       const res = await fetch(url, {
         method: "GET",
-        headers: {
-          "x-api-key": apiKey,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers,
       });
 
       if (!res.ok) {

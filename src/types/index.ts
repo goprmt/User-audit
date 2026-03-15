@@ -11,7 +11,11 @@ export interface NormalizedUser {
 /** Every integration adapter must implement this */
 export interface IntegrationAdapter {
   readonly appName: string;
-  fetchUsers(apiKey: string, baseUrl?: string): Promise<NormalizedUser[]>;
+  fetchUsers(
+    apiKey: string,
+    baseUrl?: string,
+    extraConfig?: Record<string, unknown>
+  ): Promise<NormalizedUser[]>;
 }
 
 /** Consistent API response shape */

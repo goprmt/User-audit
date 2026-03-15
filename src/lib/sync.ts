@@ -36,9 +36,10 @@ export async function runSync(
     }
 
     const apiKey = decrypt(integration.api_key_encrypted);
+    const extraConfig = integration.extra_config ?? {};
     const baseUrl =
-      (integration.extra_config as Record<string, string>)?.baseUrl ?? undefined;
-    const users: NormalizedUser[] = await adapter.fetchUsers(apiKey, baseUrl);
+      (extraConfig as Record<string, string>)?.baseUrl ?? undefined;
+    const users: NormalizedUser[] = await adapter.fetchUsers(apiKey, baseUrl, extraConfig);
 
     // Upsert users (conflict on integration_id + external_id)
     const now = new Date().toISOString();
