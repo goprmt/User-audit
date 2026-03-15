@@ -9,9 +9,16 @@ const ALLOWED_ORIGINS = [
 const ALLOWED_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
 const ALLOWED_HEADERS = 'Content-Type, Authorization';
 
+function isAllowed(origin: string | null): origin is string {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  if (origin.endsWith('.lovableproject.com') || origin.endsWith('.lovable.app')) return true;
+  return false;
+}
+
 export function middleware(req: NextRequest) {
   const origin = req.headers.get('origin');
-  const isAllowedOrigin = !!origin && ALLOWED_ORIGINS.includes(origin);
+  const isAllowedOrigin = isAllowed(origin);
 
   if (req.method === 'OPTIONS') {
     const headers = new Headers();
