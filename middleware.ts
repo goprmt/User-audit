@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const ALLOWED_ORIGINS = [
   'https://user-audie.lovable.app',
-  'https://user-audit-lotf8e8kv-prmt.vercel.app',
-  // Add additional frontend origins here as needed
+  'https://prmt-user-audit.vercel.app',
 ];
 
 const ALLOWED_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
