@@ -3,14 +3,17 @@ import type { IntegrationAdapter, NormalizedUser } from "@/types";
 /**
  * Slack adapter — fetches workspace members via the Slack Web API.
  *
- * Authentication: OAuth2 with token rotation.
- *   - apiKey = JSON string: { "refreshToken": "...", "clientSecret": "..." }
- *     (both stored encrypted in the DB)
- *   - extraConfig.clientId = Slack app client ID
+ * Supports two authentication modes (extraConfig.authMethod):
  *
- * Slack's token rotation means every access_token exchange also returns a
- * new refresh_token. The adapter exposes the rotated credentials via
- * getUpdatedApiKey() so the sync orchestrator can persist them.
+ * 1. "bot_token" — static bot/user token used directly as a Bearer token.
+ *    - apiKey = the token itself (e.g. xoxb-… or xoxp-…)
+ *    - No rotation; extraConfig.clientId is not required.
+ *
+ * 2. "refresh_token" (default) — OAuth2 with token rotation.
+ *    - apiKey = JSON string: { "refreshToken": "...", "clientSecret": "..." }
+ *    - extraConfig.clientId = Slack app client ID
+ *    - Each exchange returns a new refresh_token, persisted via
+ *      getUpdatedApiKey().
  */
 
 interface SlackMember {
@@ -59,10 +62,23 @@ export class SlackAdapter implements IntegrationAdapter {
   ): Promise<NormalizedUser[]> {
     this._updatedApiKey = null;
 
+    const authMethod = extraConfig.authMethod ?? "refresh_token";
+    const accessToken =
+      authMethod === "bot_token"
+        ? apiKey
+        : await this.exchangeRefreshToken(apiKey, extraConfig);
+
+    return this.listUsers(accessToken);
+  }
+
+  private async exchangeRefreshToken(
+    apiKey: string,
+    extraConfig: Record<string, unknown>
+  ): Promise<string> {
     const clientId = extraConfig.clientId;
     if (typeof clientId !== "string" || !clientId) {
       throw new Error(
-        "Slack integration requires a client ID (extraConfig.clientId)"
+        "Slack OAuth integration requires a client ID (extraConfig.clientId)"
       );
     }
 
@@ -79,7 +95,6 @@ export class SlackAdapter implements IntegrationAdapter {
       );
     }
 
-    // Exchange refresh token — Slack returns a NEW refresh_token each time
     const tokenRes = await fetch(SLACK_TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -111,9 +126,6 @@ export class SlackAdapter implements IntegrationAdapter {
       );
     }
 
-    const accessToken = tokenData.access_token;
-
-    // Persist the rotated refresh token so the sync orchestrator can save it
     if (tokenData.refresh_token) {
       this._updatedApiKey = JSON.stringify({
         refreshToken: tokenData.refresh_token,
@@ -121,7 +133,10 @@ export class SlackAdapter implements IntegrationAdapter {
       });
     }
 
-    // Page through users.list
+    return tokenData.access_token;
+  }
+
+  private async listUsers(accessToken: string): Promise<NormalizedUser[]> {
     const allUsers: NormalizedUser[] = [];
     let cursor: string | undefined;
 
