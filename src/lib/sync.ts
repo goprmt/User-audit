@@ -60,6 +60,14 @@ export async function runSync(
       );
     }
 
+    // Remove stale users no longer returned by the adapter (e.g. unlicensed
+    // Microsoft users that were synced previously but are now filtered out).
+    await supabase
+      .from("users")
+      .delete()
+      .eq("integration_id", integration.id)
+      .lt("synced_at", now);
+
     // Update integration last_synced_at
     await supabase
       .from("integrations")
