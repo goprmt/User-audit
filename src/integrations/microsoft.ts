@@ -71,10 +71,10 @@ export class MicrosoftAdapter implements IntegrationAdapter {
     const tokenData = (await tokenRes.json()) as { access_token: string };
     const accessToken = tokenData.access_token;
 
-    // 2. Page through /users
+    // 2. Page through /users — include signInActivity for last login tracking
     const allUsers: NormalizedUser[] = [];
     let nextUrl: string | undefined =
-      `${GRAPH_USERS_URL}?$top=${PAGE_SIZE}&$select=id,mail,userPrincipalName,displayName,accountEnabled,assignedLicenses`;
+      `${GRAPH_USERS_URL}?$top=${PAGE_SIZE}&$select=id,mail,userPrincipalName,displayName,accountEnabled,assignedLicenses,signInActivity`;
 
     while (nextUrl) {
       const res = await fetch(nextUrl, {
@@ -93,14 +93,13 @@ export class MicrosoftAdapter implements IntegrationAdapter {
       const data = (await res.json()) as GraphListResponse;
 
       for (const u of data.value) {
+        if (!u.assignedLicenses || u.assignedLicenses.length === 0) continue;
+
         allUsers.push({
           externalId: u.id,
           email: u.mail ?? u.userPrincipalName ?? "",
           displayName: u.displayName ?? null,
-          licenseType:
-            u.assignedLicenses && u.assignedLicenses.length > 0
-              ? `${u.assignedLicenses.length} license(s)`
-              : null,
+          licenseType: `${u.assignedLicenses.length} license(s)`,
           isActive: u.accountEnabled !== false,
           lastSeenAt: u.signInActivity?.lastSignInDateTime ?? null,
         });

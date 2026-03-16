@@ -6,6 +6,7 @@ interface JumpCloudSystemUser {
   displayname?: string;
   account_locked?: boolean;
   suspended?: boolean;
+  state?: string;
   created?: string;
   [key: string]: unknown;
 }
@@ -66,7 +67,7 @@ export class JumpCloudAdapter implements IntegrationAdapter {
           displayName: u.displayname ?? null,
           licenseType: null,
           isActive: !(u.account_locked || u.suspended),
-          lastSeenAt: u.created ?? null,
+          lastSeenAt: null,
         });
       }
 

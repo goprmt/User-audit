@@ -27,11 +27,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const from = (filters.page - 1) * filters.limit;
     const to = from + filters.limit - 1;
 
-    // Build query — always scoped by tenantId
     let query = auth.supabase
       .from("users")
       .select(
-        "id, email, display_name, license_type, is_active, last_seen_at, synced_at, external_id, integration_id",
+        "id, email, display_name, license_type, is_active, last_seen_at, synced_at, external_id, integration_id, integrations(app_name)",
         { count: "exact" }
       )
       .eq("tenant_id", tenantId)
