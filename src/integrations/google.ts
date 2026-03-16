@@ -2,15 +2,21 @@ import crypto from "crypto";
 import type { IntegrationAdapter, NormalizedUser } from "@/types";
 
 /**
- * Google Workspace adapter â€“ fetches users via the Google Admin Directory API.
+ * Google Workspace adapter — fetches users via the Google Admin Directory API.
  *
- * Authentication: Service Account with domain-wide delegation.
- *   - apiKey   = the full JSON service account key (stringified)
- *   - extraConfig.domain      = Google Workspace primary domain
- *   - extraConfig.adminEmail  = Workspace admin email for impersonation
+ * Supports two authentication modes:
  *
- * The adapter mints a short-lived JWT, exchanges it for an access token,
- * then pages through the Directory API /users endpoint.
+ * 1. Bearer token (recommended for quick setup):
+ *    - apiKey = an OAuth2 access token
+ *    - extraConfig.domain = Workspace primary domain
+ *
+ * 2. Service Account with domain-wide delegation:
+ *    - apiKey = full JSON service account key (stringified)
+ *    - extraConfig.domain = Workspace primary domain
+ *    - extraConfig.adminEmail = admin email for impersonation
+ *
+ * The adapter auto-detects which mode to use based on whether apiKey
+ * starts with "{" (JSON) or not (bearer token).
  */
 
 interface GoogleUser {
@@ -39,13 +45,11 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DIRECTORY_USERS_URL = "https://admin.googleapis.com/admin/directory/v1/users";
 const PAGE_SIZE = 100;
 
-/** Base64url encode without padding */
 function b64url(input: string | Buffer): string {
   const buf = typeof input === "string" ? Buffer.from(input, "utf8") : input;
   return buf.toString("base64url");
 }
 
-/** Create a signed JWT for Google OAuth2 service-account flow */
 function createJwt(
   serviceEmail: string,
   privateKeyPem: string,
@@ -83,55 +87,24 @@ export class GoogleAdapter implements IntegrationAdapter {
     _baseUrl?: string,
     extraConfig: Record<string, unknown> = {}
   ): Promise<NormalizedUser[]> {
-    // Parse the service account JSON key
-    let sa: ServiceAccountKey;
-    try {
-      sa = JSON.parse(apiKey) as ServiceAccountKey;
-    } catch {
-      throw new Error(
-        "Google integration requires the full service account JSON key as the API key"
-      );
-    }
-
-    if (!sa.client_email || !sa.private_key) {
-      throw new Error("Invalid service account key: missing client_email or private_key");
-    }
-
     const domain = extraConfig.domain;
-    const adminEmail = extraConfig.adminEmail;
-
     if (typeof domain !== "string" || !domain) {
       throw new Error("Google integration requires a domain (extraConfig.domain)");
     }
-    if (typeof adminEmail !== "string" || !adminEmail) {
-      throw new Error(
-        "Google integration requires an admin email for impersonation (extraConfig.adminEmail)"
-      );
+
+    const trimmedKey = apiKey.trim();
+    const isServiceAccount = trimmedKey.startsWith("{");
+
+    let accessToken: string;
+
+    if (isServiceAccount) {
+      accessToken = await this.getServiceAccountToken(trimmedKey, extraConfig);
+    } else {
+      // Treat apiKey as a direct OAuth2 bearer token
+      accessToken = trimmedKey;
     }
 
-    // 1. Mint JWT and exchange for access token
-    const jwt = createJwt(sa.client_email, sa.private_key, adminEmail, [
-      "https://www.googleapis.com/auth/admin.directory.user.readonly",
-    ]);
-
-    const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion: jwt,
-      }),
-    });
-
-    if (!tokenRes.ok) {
-      const body = await tokenRes.text();
-      throw new Error(`Google token error ${tokenRes.status}: ${body.slice(0, 300)}`);
-    }
-
-    const tokenData = (await tokenRes.json()) as { access_token: string };
-    const accessToken = tokenData.access_token;
-
-    // 2. Page through Directory API /users
+    // Page through Directory API /users
     const allUsers: NormalizedUser[] = [];
     let pageToken: string | undefined;
 
@@ -175,5 +148,51 @@ export class GoogleAdapter implements IntegrationAdapter {
     } while (pageToken);
 
     return allUsers;
+  }
+
+  private async getServiceAccountToken(
+    jsonKey: string,
+    extraConfig: Record<string, unknown>
+  ): Promise<string> {
+    let sa: ServiceAccountKey;
+    try {
+      sa = JSON.parse(jsonKey) as ServiceAccountKey;
+    } catch {
+      throw new Error(
+        "Google integration: the provided key looks like JSON but could not be parsed"
+      );
+    }
+
+    if (!sa.client_email || !sa.private_key) {
+      throw new Error("Invalid service account key: missing client_email or private_key");
+    }
+
+    const adminEmail = extraConfig.adminEmail;
+    if (typeof adminEmail !== "string" || !adminEmail) {
+      throw new Error(
+        "Service account mode requires an admin email for impersonation (extraConfig.adminEmail)"
+      );
+    }
+
+    const jwt = createJwt(sa.client_email, sa.private_key, adminEmail, [
+      "https://www.googleapis.com/auth/admin.directory.user.readonly",
+    ]);
+
+    const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const body = await tokenRes.text();
+      throw new Error(`Google token error ${tokenRes.status}: ${body.slice(0, 300)}`);
+    }
+
+    const tokenData = (await tokenRes.json()) as { access_token: string };
+    return tokenData.access_token;
   }
 }
