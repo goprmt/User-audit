@@ -25,10 +25,21 @@ export async function GET(req: NextRequest) {
           .from("integrations")
           .select("id", { count: "exact", head: true })
           .eq("tenant_id", tenant.id),
+        // Count only JumpCloud users — JumpCloud is the source of truth
         auth.supabase
-          .from("users")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenant.id),
+          .from("integrations")
+          .select("id")
+          .eq("tenant_id", tenant.id)
+          .eq("app_name", "JumpCloud")
+          .then(async ({ data: jcIntgs }) => {
+            const jcIds = (jcIntgs ?? []).map((i) => i.id);
+            if (jcIds.length === 0) return { count: 0 };
+            return auth.supabase
+              .from("users")
+              .select("id", { count: "exact", head: true })
+              .eq("tenant_id", tenant.id)
+              .in("integration_id", jcIds);
+          }),
         auth.supabase
           .from("integrations")
           .select("last_synced_at")
