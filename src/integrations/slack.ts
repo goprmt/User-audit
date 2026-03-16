@@ -154,6 +154,7 @@ export class SlackAdapter implements IntegrationAdapter {
 
       for (const m of data.members ?? []) {
         if (m.is_bot || m.is_app_user || m.id === "USLACKBOT") continue;
+        if (m.deleted) continue;
 
         const email = m.profile?.email;
         if (!email) continue;
@@ -168,7 +169,7 @@ export class SlackAdapter implements IntegrationAdapter {
           displayName:
             m.profile?.real_name ?? m.real_name ?? m.name ?? null,
           licenseType: null,
-          isActive: !m.deleted,
+          isActive: true,
           lastSeenAt: lastSeen,
         });
       }

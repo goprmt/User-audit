@@ -10,6 +10,12 @@ import type { IntegrationAdapter, NormalizedUser } from "@/types";
  *
  * On each sync the adapter exchanges the refresh token for a short-lived
  * access token, then pages through the team/members/list_v2 endpoint.
+ * Last-active timestamps are derived from the team_log/get_events endpoint
+ * filtered to login events.
+ *
+ * Required Dropbox app scopes:
+ *   - members.read       (team member listing)
+ *   - events.read        (team activity / audit log)
  */
 
 interface DropboxMember {
@@ -34,11 +40,32 @@ interface DropboxSecrets {
   secret: string;
 }
 
+interface DropboxEventActor {
+  ".tag"?: string;
+  user?: { email?: string; team_member_id?: string };
+}
+
+interface DropboxEvent {
+  timestamp?: string;
+  actor?: DropboxEventActor;
+  event_type?: { ".tag"?: string };
+}
+
+interface DropboxEventsResponse {
+  events: DropboxEvent[];
+  cursor?: string;
+  has_more: boolean;
+}
+
 const DROPBOX_TOKEN_URL = "https://api.dropboxapi.com/oauth2/token";
 const DROPBOX_MEMBERS_LIST_URL =
   "https://api.dropboxapi.com/2/team/members/list_v2";
 const DROPBOX_MEMBERS_CONTINUE_URL =
   "https://api.dropboxapi.com/2/team/members/list/continue_v2";
+const DROPBOX_EVENTS_URL =
+  "https://api.dropboxapi.com/2/team_log/get_events";
+const DROPBOX_EVENTS_CONTINUE_URL =
+  "https://api.dropboxapi.com/2/team_log/get_events/continue";
 
 export class DropboxAdapter implements IntegrationAdapter {
   readonly appName = "Dropbox";
@@ -90,7 +117,22 @@ export class DropboxAdapter implements IntegrationAdapter {
     const tokenData = (await tokenRes.json()) as { access_token: string };
     const accessToken = tokenData.access_token;
 
-    // Page through team members
+    // Fetch members and login events in parallel
+    const [allUsers, lastLoginByMemberId] = await Promise.all([
+      this.fetchMembers(accessToken),
+      this.fetchLastLogins(accessToken),
+    ]);
+
+    for (const u of allUsers) {
+      u.lastSeenAt = lastLoginByMemberId.get(u.externalId) ?? null;
+    }
+
+    return allUsers;
+  }
+
+  private async fetchMembers(
+    accessToken: string
+  ): Promise<NormalizedUser[]> {
     const allUsers: NormalizedUser[] = [];
     let hasMore = true;
     let cursor: string | undefined;
@@ -139,5 +181,61 @@ export class DropboxAdapter implements IntegrationAdapter {
     }
 
     return allUsers;
+  }
+
+  /**
+   * Pages through team_log/get_events filtered to logins and builds a map
+   * of team_member_id → most recent login ISO timestamp.
+   */
+  private async fetchLastLogins(
+    accessToken: string
+  ): Promise<Map<string, string>> {
+    const lastLogin = new Map<string, string>();
+
+    try {
+      let hasMore = true;
+      let cursor: string | undefined;
+
+      while (hasMore) {
+        const url = cursor ? DROPBOX_EVENTS_CONTINUE_URL : DROPBOX_EVENTS_URL;
+        const body = cursor
+          ? { cursor }
+          : { limit: 1000, category: "logins" };
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) break;
+
+        const data = (await res.json()) as DropboxEventsResponse;
+
+        for (const evt of data.events ?? []) {
+          const tag = evt.event_type?.[".tag"] ?? "";
+          if (tag !== "login_success") continue;
+
+          const memberId = evt.actor?.user?.team_member_id;
+          const ts = evt.timestamp;
+          if (!memberId || !ts) continue;
+
+          const existing = lastLogin.get(memberId);
+          if (!existing || ts > existing) {
+            lastLogin.set(memberId, ts);
+          }
+        }
+
+        hasMore = data.has_more;
+        cursor = data.cursor;
+      }
+    } catch {
+      // Non-fatal — we still return members even without last-login data
+    }
+
+    return lastLogin;
   }
 }
