@@ -16,6 +16,12 @@ export interface IntegrationAdapter {
     baseUrl?: string,
     extraConfig?: Record<string, unknown>
   ): Promise<NormalizedUser[]>;
+  /**
+   * Adapters that rotate credentials (e.g. Slack's refresh token rotation)
+   * should return the updated API key blob after fetchUsers completes.
+   * The sync orchestrator will persist the new value to the DB.
+   */
+  getUpdatedApiKey?(): string | null;
 }
 
 /** Consistent API response shape */

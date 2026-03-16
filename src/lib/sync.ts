@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdapter } from "@/integrations";
-import { decrypt } from "@/lib/crypto";
+import { decrypt, encrypt } from "@/lib/crypto";
 import type { IntegrationRow, NormalizedUser } from "@/types";
 
 export interface SyncResult {
@@ -40,6 +40,17 @@ export async function runSync(
     const baseUrl =
       (extraConfig as Record<string, string>)?.baseUrl ?? undefined;
     const users: NormalizedUser[] = await adapter.fetchUsers(apiKey, baseUrl, extraConfig);
+
+    // If the adapter rotated credentials (e.g. Slack), persist the new value
+    if (adapter.getUpdatedApiKey) {
+      const newApiKey = adapter.getUpdatedApiKey();
+      if (newApiKey) {
+        await supabase
+          .from("integrations")
+          .update({ api_key_encrypted: encrypt(newApiKey) })
+          .eq("id", integration.id);
+      }
+    }
 
     // Upsert users (conflict on integration_id + external_id)
     const now = new Date().toISOString();
