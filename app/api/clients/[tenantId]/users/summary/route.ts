@@ -11,33 +11,54 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
   const { tenantId } = await params;
 
-  // Total / active / inactive counts
-  const [totalRes, activeRes, inactiveRes] = await Promise.all([
-    auth.supabase
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId),
-    auth.supabase
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true),
-    auth.supabase
-      .from("users")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId)
-      .eq("is_active", false),
-  ]);
-
-  // Per-integration breakdown
+  // Fetch all integrations so we can separate JumpCloud from the rest
   const { data: integrations } = await auth.supabase
     .from("integrations")
     .select("id, app_name")
     .eq("tenant_id", tenantId);
 
-  const byIntegration: { integrationId: string; appName: string; userCount: number }[] = [];
+  const allIntegrations = integrations ?? [];
 
-  for (const intg of integrations ?? []) {
+  // JumpCloud is the source of truth for headcount stats
+  const jumpcloudIds = allIntegrations
+    .filter((i) => i.app_name?.toLowerCase() === "jumpcloud")
+    .map((i) => i.id);
+
+  // Build total/active/inactive from JumpCloud rows only (or fall back to all
+  // users when no JumpCloud integration exists yet)
+  const scopedIds = jumpcloudIds.length > 0 ? jumpcloudIds : null;
+
+  const buildQuery = (isActiveFilter?: boolean) => {
+    let q = auth.supabase
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId);
+
+    if (scopedIds) {
+      q = q.in("integration_id", scopedIds);
+    }
+
+    if (isActiveFilter !== undefined) {
+      q = q.eq("is_active", isActiveFilter);
+    }
+
+    return q;
+  };
+
+  const [totalRes, activeRes, inactiveRes] = await Promise.all([
+    buildQuery(),
+    buildQuery(true),
+    buildQuery(false),
+  ]);
+
+  // Per-integration breakdown (all integrations, not just JumpCloud)
+  const byIntegration: {
+    integrationId: string;
+    appName: string;
+    userCount: number;
+  }[] = [];
+
+  for (const intg of allIntegrations) {
     const { count } = await auth.supabase
       .from("users")
       .select("id", { count: "exact", head: true })
