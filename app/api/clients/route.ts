@@ -3,12 +3,12 @@ import { requireAuth, isAuthError } from "@/lib/auth";
 import { createTenantSchema } from "@/lib/validation";
 import { ZodError } from "zod";
 
-// GET /api/clients — list all clients
+// GET /api/clients â€” list all clients with integration/user counts
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (isAuthError(auth)) return auth;
 
-  const { data, error } = await auth.supabase
+  const { data: tenants, error } = await auth.supabase
     .from("tenants")
     .select("*")
     .order("name");
@@ -17,10 +17,40 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: null, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ data, error: null });
+  // Enrich each tenant with integration count, user count, and last sync time
+  const enriched = await Promise.all(
+    (tenants ?? []).map(async (tenant) => {
+      const [intgResult, userResult, lastSyncResult] = await Promise.all([
+        auth.supabase
+          .from("integrations")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenant.id),
+        auth.supabase
+          .from("users")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenant.id),
+        auth.supabase
+          .from("integrations")
+          .select("last_synced_at")
+          .eq("tenant_id", tenant.id)
+          .not("last_synced_at", "is", null)
+          .order("last_synced_at", { ascending: false })
+          .limit(1),
+      ]);
+
+      return {
+        ...tenant,
+        integrationCount: intgResult.count ?? 0,
+        userCount: userResult.count ?? 0,
+        lastSyncedAt: lastSyncResult.data?.[0]?.last_synced_at ?? null,
+      };
+    })
+  );
+
+  return NextResponse.json({ data: enriched, error: null });
 }
 
-// POST /api/clients — create a new client
+// POST /api/clients â€” create a new client
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (isAuthError(auth)) return auth;
