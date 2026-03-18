@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, isAuthError } from "@/lib/auth";
+import { requireAuth, isAuthError, requireTenantAccess } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { runSync } from "@/lib/sync";
 import type { IntegrationRow } from "@/types";
@@ -13,6 +13,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (isAuthError(auth)) return auth;
 
   const { tenantId, integId } = await params;
+
+  const forbidden = await requireTenantAccess(auth, tenantId);
+  if (forbidden) return forbidden;
 
   // Rate limit: 5 syncs per 15 min per integration
   const rl = checkRateLimit(`sync:${integId}`);

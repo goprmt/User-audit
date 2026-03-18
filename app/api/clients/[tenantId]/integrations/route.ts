@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, isAuthError } from "@/lib/auth";
+import { requireAuth, isAuthError, requireTenantAccess } from "@/lib/auth";
 import { createIntegrationSchema } from "@/lib/validation";
 import { encrypt } from "@/lib/crypto";
-import { getAdapter } from "@/integrations";
+import { getAdapter, listAdapterNames } from "@/integrations";
 import { ZodError } from "zod";
 
 interface RouteParams {
@@ -15,6 +15,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (isAuthError(auth)) return auth;
 
   const { tenantId } = await params;
+
+  const forbidden = await requireTenantAccess(auth, tenantId);
+  if (forbidden) return forbidden;
 
   const { data, error } = await auth.supabase
     .from("integrations")
@@ -38,6 +41,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const { tenantId } = await params;
 
+  const postForbidden = await requireTenantAccess(auth, tenantId);
+  if (postForbidden) return postForbidden;
+
   try {
     const body = await req.json();
     const input = createIntegrationSchema.parse(body);
@@ -45,7 +51,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Check adapter exists
     if (!getAdapter(input.appName)) {
       return NextResponse.json(
-        { data: null, error: `Unsupported app: "${input.appName}". Supported: JumpCloud` },
+        { data: null, error: `Unsupported app: "${input.appName}". Supported: ${listAdapterNames().join(", ")}` },
         { status: 400 }
       );
     }

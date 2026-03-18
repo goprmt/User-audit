@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, isAuthError } from "@/lib/auth";
+import { requireAuth, isAuthError, requireTenantAccess } from "@/lib/auth";
 
 interface RouteParams {
   params: Promise<{ tenantId: string }>;
@@ -10,6 +10,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (isAuthError(auth)) return auth;
 
   const { tenantId } = await params;
+
+  const forbidden = await requireTenantAccess(auth, tenantId);
+  if (forbidden) return forbidden;
 
   const { data: tenant, error } = await auth.supabase
     .from("tenants")

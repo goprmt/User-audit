@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, isAuthError } from "@/lib/auth";
+import { requireAuth, isAuthError, requireTenantAccess } from "@/lib/auth";
 import { usersQuerySchema } from "@/lib/validation";
 import { ZodError } from "zod";
 
@@ -12,6 +12,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (isAuthError(auth)) return auth;
 
   const { tenantId } = await params;
+
+  const forbidden = await requireTenantAccess(auth, tenantId);
+  if (forbidden) return forbidden;
 
   try {
     // Parse query params

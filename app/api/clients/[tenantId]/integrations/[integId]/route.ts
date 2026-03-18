@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, isAuthError } from "@/lib/auth";
+import { requireAuth, isAuthError, requireTenantAccess } from "@/lib/auth";
 import { updateIntegrationSchema } from "@/lib/validation";
 import { encrypt } from "@/lib/crypto";
 import { ZodError } from "zod";
@@ -14,6 +14,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
   if (isAuthError(auth)) return auth;
 
   const { tenantId, integId } = await params;
+
+  const putForbidden = await requireTenantAccess(auth, tenantId);
+  if (putForbidden) return putForbidden;
 
   try {
     const body = await req.json();
@@ -90,6 +93,9 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
   if (isAuthError(auth)) return auth;
 
   const { tenantId, integId } = await params;
+
+  const delForbidden = await requireTenantAccess(auth, tenantId);
+  if (delForbidden) return delForbidden;
 
   // Verify ownership
   const { data: existing } = await auth.supabase
