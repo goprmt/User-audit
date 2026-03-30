@@ -139,6 +139,9 @@ export class SlackAdapter implements IntegrationAdapter {
   private async listUsers(accessToken: string): Promise<NormalizedUser[]> {
     const allUsers: NormalizedUser[] = [];
     let cursor: string | undefined;
+    let totalMembers = 0;
+    let humanMembers = 0;
+    let missingEmail = 0;
 
     do {
       const params = new URLSearchParams({ limit: "200" });
@@ -168,11 +171,16 @@ export class SlackAdapter implements IntegrationAdapter {
       }
 
       for (const m of data.members ?? []) {
+        totalMembers++;
         if (m.is_bot || m.is_app_user || m.id === "USLACKBOT") continue;
         if (m.deleted) continue;
+        humanMembers++;
 
         const email = m.profile?.email;
-        if (!email) continue;
+        if (!email) {
+          missingEmail++;
+          continue;
+        }
 
         const lastSeen = m.updated
           ? new Date(m.updated * 1000).toISOString()
@@ -186,11 +194,19 @@ export class SlackAdapter implements IntegrationAdapter {
           licenseType: null,
           isActive: true,
           lastSeenAt: lastSeen,
+          createdAt: null, // Slack users.list does not expose account creation date
         });
       }
 
       cursor = data.response_metadata?.next_cursor || undefined;
     } while (cursor);
+
+    if (allUsers.length === 0 && humanMembers > 0 && missingEmail === humanMembers) {
+      throw new Error(
+        `Slack returned ${totalMembers} members but none had an email address. ` +
+        "Add the users:read.email scope to your Slack app/token and try again."
+      );
+    }
 
     return allUsers;
   }

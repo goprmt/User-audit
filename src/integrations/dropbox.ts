@@ -173,6 +173,7 @@ export class DropboxAdapter implements IntegrationAdapter {
           licenseType: p.membership_type?.[".tag"] ?? null,
           isActive,
           lastSeenAt: null,
+          createdAt: p.joined_on ?? null,
         });
       }
 

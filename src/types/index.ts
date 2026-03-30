@@ -6,6 +6,7 @@ export interface NormalizedUser {
   licenseType: string | null;
   isActive: boolean;
   lastSeenAt: string | null; // ISO timestamp
+  createdAt: string | null; // ISO timestamp — account creation date from the external service
 }
 
 /** Every integration adapter must implement this */
@@ -62,7 +63,20 @@ export interface UserRow {
   external_id: string;
   is_active: boolean;
   last_seen_at: string | null;
+  external_created_at: string | null;
   synced_at: string;
+  created_at: string;
+}
+
+export interface AuditSnapshotRow {
+  id: string;
+  tenant_id: string;
+  label: string | null;
+  total_findings: number;
+  not_in_jumpcloud: number;
+  offboarded_still_licensed: number;
+  licenses_to_reclaim: number;
+  snapshot_data: unknown; // JSONB — full findings array
   created_at: string;
 }
 

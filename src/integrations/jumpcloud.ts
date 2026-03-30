@@ -89,6 +89,7 @@ export class JumpCloudAdapter implements IntegrationAdapter {
         licenseType: u.employeeType ?? null,
         isActive: !(u.account_locked || u.suspended),
         lastSeenAt: lastLoginMap.get(u._id) ?? null,
+        createdAt: u.created ?? null,
       });
     }
 

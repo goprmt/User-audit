@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     let query = auth.supabase
       .from("users")
       .select(
-        "id, email, display_name, license_type, is_active, last_seen_at, synced_at, external_id, integration_id, integrations(app_name)",
+        "id, email, display_name, license_type, is_active, last_seen_at, external_created_at, synced_at, external_id, integration_id, integrations(app_name)",
         { count: "exact" }
       )
       .eq("tenant_id", tenantId)

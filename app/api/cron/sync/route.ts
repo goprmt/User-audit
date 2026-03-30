@@ -4,7 +4,7 @@ import { runSync } from "@/lib/sync";
 import type { IntegrationRow } from "@/types";
 
 /**
- * Vercel Cron Job — runs on the 1st of every month.
+ * Vercel Cron Job — runs daily at 06:00 UTC.
  * Syncs all active integrations across all tenants.
  * Secured via CRON_SECRET header check.
  */
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  console.log("[CRON] Monthly sync started");
+  console.log("[CRON] Daily sync started");
 
   // Fetch all active integrations (uses service role — bypasses RLS)
   const { data: integrations, error } = await supabaseAdmin
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  console.log("[CRON] Monthly sync complete");
+  console.log("[CRON] Daily sync complete");
 
   return NextResponse.json({ data: { synced: results.length, results }, error: null });
 }

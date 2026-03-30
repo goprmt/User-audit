@@ -65,6 +65,7 @@ export async function runSync(
           license_type: u.licenseType,
           is_active: u.isActive,
           last_seen_at: u.lastSeenAt,
+          external_created_at: u.createdAt,
           synced_at: now,
         },
         { onConflict: "integration_id,external_id" }

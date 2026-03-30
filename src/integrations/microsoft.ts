@@ -21,6 +21,7 @@ interface GraphUser {
   accountEnabled?: boolean;
   assignedLicenses?: { skuId: string }[];
   signInActivity?: { lastSignInDateTime?: string | null };
+  createdDateTime?: string | null;
   [key: string]: unknown;
 }
 
@@ -150,7 +151,7 @@ export class MicrosoftAdapter implements IntegrationAdapter {
     // 3. Page through /users — include signInActivity for last login tracking
     const allUsers: NormalizedUser[] = [];
     let nextUrl: string | undefined =
-      `${GRAPH_USERS_URL}?$top=${PAGE_SIZE}&$select=id,mail,userPrincipalName,displayName,accountEnabled,assignedLicenses,signInActivity`;
+      `${GRAPH_USERS_URL}?$top=${PAGE_SIZE}&$select=id,mail,userPrincipalName,displayName,accountEnabled,assignedLicenses,signInActivity,createdDateTime`;
 
     while (nextUrl) {
       const res = await fetch(nextUrl, {
@@ -182,6 +183,7 @@ export class MicrosoftAdapter implements IntegrationAdapter {
           licenseType: licenseNames.join(", "),
           isActive: u.accountEnabled !== false,
           lastSeenAt: u.signInActivity?.lastSignInDateTime ?? null,
+          createdAt: u.createdDateTime ?? null,
         });
       }
 

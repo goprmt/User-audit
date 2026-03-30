@@ -20,6 +20,7 @@ interface GoogleUser {
   suspended?: boolean;
   isAdmin?: boolean;
   lastLoginTime?: string;
+  creationTime?: string;
   isEnrolledIn2Sv?: boolean;
   [key: string]: unknown;
 }
@@ -131,6 +132,7 @@ export class GoogleAdapter implements IntegrationAdapter {
           licenseType: u.isAdmin ? "Admin" : null,
           isActive: !u.suspended,
           lastSeenAt: u.lastLoginTime ?? null,
+          createdAt: u.creationTime ?? null,
         });
       }
 
