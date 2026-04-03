@@ -14,7 +14,9 @@
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "@clerk/nextjs": "^5.0.0",
+    "@clerk/backend": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
