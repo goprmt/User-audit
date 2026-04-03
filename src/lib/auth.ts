@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createUserClient, supabaseAnon } from "./supabase";
+import { verifyToken } from "@clerk/backend";
+import { supabaseAdmin } from "./supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface AuthContext {
   userId: string;
   email: string;
-  supabase: SupabaseClient; // user-scoped client (respects RLS)
+  supabase: SupabaseClient; // admin client — Clerk owns the session, not Supabase
 }
 
 /**
- * Extract and verify the Supabase session from the Authorization header.
+ * Extract and verify the Clerk session token from the Authorization header.
  * Returns either an AuthContext on success or a NextResponse error.
  */
 export async function requireAuth(
@@ -26,24 +27,22 @@ export async function requireAuth(
 
   const token = header.slice(7);
 
-  // Verify the JWT against Supabase Auth
-  const {
-    data: { user },
-    error,
-  } = await supabaseAnon.auth.getUser(token);
+  try {
+    const payload = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY!,
+    });
 
-  if (error || !user) {
+    return {
+      userId: payload.sub,
+      email: (payload as Record<string, unknown>)["email"] as string ?? "",
+      supabase: supabaseAdmin,
+    };
+  } catch {
     return NextResponse.json(
       { data: null, error: "Invalid or expired token" },
       { status: 401 }
     );
   }
-
-  return {
-    userId: user.id,
-    email: user.email ?? "",
-    supabase: createUserClient(token),
-  };
 }
 
 /**
