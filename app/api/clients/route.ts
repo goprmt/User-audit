@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthError, isPrometheanUser } from "@/lib/auth";
 import { createTenantSchema } from "@/lib/validation";
+import { clerkClient } from "@/lib/clerk";
 import { ZodError } from "zod";
 
 // GET /api/clients — list all clients with integration/user counts
@@ -62,13 +63,25 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const input = createTenantSchema.parse(body);
 
+    // Create a Clerk organization for this tenant
+    const clerkOrg = await clerkClient.organizations.createOrganization({
+      name: input.name,
+      slug: input.slug,
+    });
+
     const { data, error } = await auth.supabase
       .from("tenants")
-      .insert({ name: input.name, slug: input.slug })
+      .insert({
+        name: input.name,
+        slug: input.slug,
+        clerk_org_id: clerkOrg.id,
+      })
       .select()
       .single();
 
     if (error) {
+      // Attempt to clean up the Clerk org if DB insert fails
+      await clerkClient.organizations.deleteOrganization(clerkOrg.id).catch(() => {});
       const status = error.code === "23505" ? 409 : 500;
       return NextResponse.json(
         { data: null, error: error.message },
