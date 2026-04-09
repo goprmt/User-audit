@@ -49,5 +49,5 @@ export const usersQuerySchema = z.object({
     .transform((v) => v === "true")
     .optional(),
   page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().min(1).max(5000).default(50),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
 });

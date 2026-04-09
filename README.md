@@ -89,13 +89,13 @@ POST /api/auth/login
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/clients` | List all clients |
-| POST | `/api/clients` | Create a client |
-| GET | `/api/clients/:tenantId` | Get client details + counts |
+| GET | `/api/tenants` | List all clients |
+| POST | `/api/tenants` | Create a client |
+| GET | `/api/tenants/:tenantId` | Get client details + counts |
 
 **Create:**
 ```json
-POST /api/clients
+POST /api/tenants
 { "name": "Acme Corp", "slug": "acme-corp" }
 ```
 
@@ -103,16 +103,16 @@ POST /api/clients
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/clients/:tenantId/integrations` | List integrations |
-| POST | `/api/clients/:tenantId/integrations` | Add integration |
-| PUT | `/api/clients/:tenantId/integrations/:integId` | Update integration |
-| DELETE | `/api/clients/:tenantId/integrations/:integId` | Remove integration |
-| POST | `/api/clients/:tenantId/integrations/:integId/sync` | Manual sync (rate limited) |
-| GET | `/api/clients/:tenantId/integrations/:integId/logs` | Sync history |
+| GET | `/api/tenants/:tenantId/integrations` | List integrations |
+| POST | `/api/tenants/:tenantId/integrations` | Add integration |
+| PUT | `/api/tenants/:tenantId/integrations/:integId` | Update integration |
+| DELETE | `/api/tenants/:tenantId/integrations/:integId` | Remove integration |
+| POST | `/api/tenants/:tenantId/integrations/:integId/sync` | Manual sync (rate limited) |
+| GET | `/api/tenants/:tenantId/integrations/:integId/logs` | Sync history |
 
 **Add JumpCloud:**
 ```json
-POST /api/clients/:tenantId/integrations
+POST /api/tenants/:tenantId/integrations
 {
   "appName": "JumpCloud",
   "apiKey": "your-jumpcloud-api-key",
@@ -127,8 +127,8 @@ Manual sync is rate limited to **5 requests per 15 minutes** per integration.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/clients/:tenantId/users` | List users (paginated, filterable) |
-| GET | `/api/clients/:tenantId/users/summary` | Aggregate counts |
+| GET | `/api/tenants/:tenantId/users` | List users (paginated, filterable) |
+| GET | `/api/tenants/:tenantId/users/summary` | Aggregate counts |
 
 **Query filters** (all optional): `integrationId`, `licenseType`, `isActive` (true/false), `page`, `limit` (max 200).
 
@@ -147,8 +147,8 @@ app/
   api/
     auth/login/route.ts          # Sign in
     auth/logout/route.ts         # Sign out
-    clients/route.ts             # List / create clients
-    clients/[tenantId]/
+    tenants/route.ts             # List / create tenants
+    tenants/[tenantId]/
       route.ts                   # Get tenant details
       users/route.ts             # List users (filtered)
       users/summary/route.ts     # User count aggregates

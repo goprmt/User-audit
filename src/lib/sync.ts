@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdapter } from "@/integrations";
-import { decrypt, encrypt } from "@/lib/crypto";
+import { decrypt } from "@/lib/crypto";
 import type { IntegrationRow, NormalizedUser } from "@/types";
 
 export interface SyncResult {
@@ -36,55 +36,28 @@ export async function runSync(
     }
 
     const apiKey = decrypt(integration.api_key_encrypted);
-    const extraConfig = integration.extra_config ?? {};
     const baseUrl =
-      (extraConfig as Record<string, string>)?.baseUrl ?? undefined;
-    const users: NormalizedUser[] = await adapter.fetchUsers(apiKey, baseUrl, extraConfig);
+      (integration.extra_config as Record<string, string>)?.baseUrl ?? undefined;
+    const users: NormalizedUser[] = await adapter.fetchUsers(apiKey, baseUrl, integration.extra_config ?? {});
 
-    // If the adapter rotated credentials (e.g. Slack), persist the new value
-    if (adapter.getUpdatedApiKey) {
-      const newApiKey = adapter.getUpdatedApiKey();
-      if (newApiKey) {
-        await supabase
-          .from("integrations")
-          .update({ api_key_encrypted: encrypt(newApiKey) })
-          .eq("id", integration.id);
-      }
-    }
-
-    // Upsert users in batches (conflict on integration_id + external_id)
+    // Upsert users (conflict on integration_id + external_id)
     const now = new Date().toISOString();
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < users.length; i += BATCH_SIZE) {
-      const batch = users.slice(i, i + BATCH_SIZE).map((u) => ({
-        tenant_id: integration.tenant_id,
-        integration_id: integration.id,
-        external_id: u.externalId,
-        email: u.email,
-        display_name: u.displayName,
-        license_type: u.licenseType,
-        is_active: u.isActive,
-        last_seen_at: u.lastSeenAt,
-        external_created_at: u.createdAt,
-        synced_at: now,
-      }));
-
-      const { error: upsertErr } = await supabase
-        .from("users")
-        .upsert(batch, { onConflict: "integration_id,external_id" });
-
-      if (upsertErr) {
-        throw new Error(`Failed to upsert users batch ${i / BATCH_SIZE + 1}: ${upsertErr.message}`);
-      }
+    for (const u of users) {
+      await supabase.from("users").upsert(
+        {
+          tenant_id: integration.tenant_id,
+          integration_id: integration.id,
+          external_id: u.externalId,
+          email: u.email,
+          display_name: u.displayName,
+          license_type: u.licenseType,
+          is_active: u.isActive,
+          last_seen_at: u.lastSeenAt,
+          synced_at: now,
+        },
+        { onConflict: "integration_id,external_id" }
+      );
     }
-
-    // Remove stale users no longer returned by the adapter (e.g. unlicensed
-    // Microsoft users that were synced previously but are now filtered out).
-    await supabase
-      .from("users")
-      .delete()
-      .eq("integration_id", integration.id)
-      .lt("synced_at", now);
 
     // Update integration last_synced_at
     await supabase

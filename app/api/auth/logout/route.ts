@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, isAuthError } from "@/lib/auth";
 
-/**
- * Session sign-out is handled by the Clerk frontend SDK.
- * This endpoint is kept for backwards compatibility and returns success immediately.
- */
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (isAuthError(auth)) return auth;
+
+  await auth.supabase.auth.signOut();
+
   return NextResponse.json({ data: { message: "Logged out" }, error: null });
 }
