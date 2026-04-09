@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createUserClient, supabaseAnon } from "./supabase";
+import { jwtVerify } from "jose";
+import { createUserClient } from "./supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface AuthContext {
@@ -8,9 +9,16 @@ export interface AuthContext {
   supabase: SupabaseClient; // user-scoped client (respects RLS)
 }
 
+// Supabase JWT secret — same key used in the Clerk "supabase" JWT template
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.SUPABASE_JWT_SECRET!
+);
+
 /**
- * Extract and verify the Supabase session from the Authorization header.
- * Returns either an AuthContext on success or a NextResponse error.
+ * Verify the JWT from the Authorization header using the Supabase JWT secret.
+ * This works with Clerk tokens issued via the "supabase" JWT template, which
+ * signs tokens with the Supabase JWT secret so they pass Supabase RLS checks
+ * without requiring the user to exist in Supabase's auth.users table.
  */
 export async function requireAuth(
   req: NextRequest
@@ -26,24 +34,24 @@ export async function requireAuth(
 
   const token = header.slice(7);
 
-  // Verify the JWT against Supabase Auth
-  const {
-    data: { user },
-    error,
-  } = await supabaseAnon.auth.getUser(token);
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
 
-  if (error || !user) {
+    if (!payload.sub) {
+      throw new Error("No sub claim in token");
+    }
+
+    return {
+      userId: payload.sub,
+      email: (payload as Record<string, unknown>).email as string ?? "",
+      supabase: createUserClient(token),
+    };
+  } catch {
     return NextResponse.json(
       { data: null, error: "Invalid or expired token" },
       { status: 401 }
     );
   }
-
-  return {
-    userId: user.id,
-    email: user.email ?? "",
-    supabase: createUserClient(token),
-  };
 }
 
 /**
