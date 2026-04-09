@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const ALLOWED_ORIGINS = [
   'https://user-audie.lovable.app',
   'https://prmt-user-audit.vercel.app',
+  'https://roster.prmt.com',
 ];
 
 const ALLOWED_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
