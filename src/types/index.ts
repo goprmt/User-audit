@@ -6,6 +6,7 @@ export interface NormalizedUser {
   licenseType: string | null;
   isActive: boolean;
   lastSeenAt: string | null; // ISO timestamp
+  createdAt?: string | null; // ISO timestamp — maps to external_created_at in DB
 }
 
 /** Every integration adapter must implement this */
