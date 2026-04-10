@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
-import { createUserClient } from "./supabase";
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import { supabaseAdmin } from "./supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface AuthContext {
   userId: string;
   email: string;
-  supabase: SupabaseClient; // user-scoped client (respects RLS)
+  supabase: SupabaseClient;
 }
 
-// Supabase JWT secret — same key used in the Clerk "supabase" JWT template
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.SUPABASE_JWT_SECRET!
+// Clerk's public JWKS — verifies tokens without needing any secrets
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLERK_JWKS_URL ?? "https://clerk.prmt.com"}/.well-known/jwks.json`)
 );
 
 /**
- * Verify the JWT from the Authorization header using the Supabase JWT secret.
- * This works with Clerk tokens issued via the "supabase" JWT template, which
- * signs tokens with the Supabase JWT secret so they pass Supabase RLS checks
- * without requiring the user to exist in Supabase's auth.users table.
+ * Verify the Clerk JWT from the Authorization header using Clerk's public JWKS.
+ * Uses supabaseAdmin for DB access since this is a trusted server-side API.
  */
 export async function requireAuth(
   req: NextRequest
@@ -35,7 +33,7 @@ export async function requireAuth(
   const token = header.slice(7);
 
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JWKS);
 
     if (!payload.sub) {
       throw new Error("No sub claim in token");
@@ -44,7 +42,7 @@ export async function requireAuth(
     return {
       userId: payload.sub,
       email: (payload as Record<string, unknown>).email as string ?? "",
-      supabase: createUserClient(token),
+      supabase: supabaseAdmin,
     };
   } catch {
     return NextResponse.json(
