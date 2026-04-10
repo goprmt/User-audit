@@ -23,8 +23,10 @@ export class JumpCloudAdapter implements IntegrationAdapter {
 
   async fetchUsers(
     apiKey: string,
-    baseUrl: string = DEFAULT_BASE_URL
+    baseUrl: string = DEFAULT_BASE_URL,
+    extraConfig: Record<string, unknown> = {}
   ): Promise<NormalizedUser[]> {
+    const orgId = typeof extraConfig.orgId === "string" ? extraConfig.orgId : "";
     const allUsers: NormalizedUser[] = [];
     let skip = 0;
     let total = Infinity;
@@ -32,13 +34,16 @@ export class JumpCloudAdapter implements IntegrationAdapter {
     while (skip < total) {
       const url = `${baseUrl}/api/systemusers?limit=${PAGE_SIZE}&skip=${skip}`;
 
+      const headers: Record<string, string> = {
+        "x-api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      };
+      if (orgId) headers["x-org-id"] = orgId;
+
       const res = await fetch(url, {
         method: "GET",
-        headers: {
-          "x-api-key": apiKey,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers,
       });
 
       if (!res.ok) {
