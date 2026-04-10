@@ -9,9 +9,13 @@ export interface AuthContext {
   supabase: SupabaseClient;
 }
 
-// Clerk's public JWKS — verifies tokens without needing any secrets
-const JWKS = createRemoteJWKSet(
-  new URL(`${process.env.CLERK_JWKS_URL ?? "https://clerk.prmt.com"}/.well-known/jwks.json`)
+// Clerk JWKS endpoints — try production first, fall back to dev
+// (Lovable overrides the Clerk key on their platform, so tokens may come from either instance)
+const JWKS_PROD = createRemoteJWKSet(
+  new URL("https://clerk.prmt.com/.well-known/jwks.json")
+);
+const JWKS_DEV = createRemoteJWKSet(
+  new URL("https://content-worm-26.clerk.accounts.dev/.well-known/jwks.json")
 );
 
 /**
@@ -33,7 +37,13 @@ export async function requireAuth(
   const token = header.slice(7);
 
   try {
-    const { payload } = await jwtVerify(token, JWKS);
+    // Try production JWKS first, then dev (Lovable may override the Clerk key)
+    let payload;
+    try {
+      ({ payload } = await jwtVerify(token, JWKS_PROD));
+    } catch {
+      ({ payload } = await jwtVerify(token, JWKS_DEV));
+    }
 
     if (!payload.sub) {
       throw new Error("No sub claim in token");
