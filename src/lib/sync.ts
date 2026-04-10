@@ -54,31 +54,40 @@ export async function runSync(
 
     // Upsert users (conflict on integration_id + external_id)
     const now = new Date().toISOString();
+    let upsertedCount = 0;
     for (const u of users) {
-      await supabase.from("users").upsert(
-        {
-          tenant_id: integration.tenant_id,
-          integration_id: integration.id,
-          external_id: u.externalId,
-          email: u.email,
-          display_name: u.displayName,
-          license_type: u.licenseType,
-          is_active: u.isActive,
-          last_seen_at: u.lastSeenAt,
-          external_created_at: u.createdAt ?? null,
-          synced_at: now,
-        },
-        { onConflict: "integration_id,external_id" }
-      );
+      // Build row — only include external_created_at if the adapter set it
+      const row: Record<string, unknown> = {
+        tenant_id: integration.tenant_id,
+        integration_id: integration.id,
+        external_id: u.externalId,
+        email: u.email,
+        display_name: u.displayName,
+        license_type: u.licenseType,
+        is_active: u.isActive,
+        last_seen_at: u.lastSeenAt,
+        synced_at: now,
+      };
+      if (u.createdAt !== undefined) {
+        row.external_created_at = u.createdAt ?? null;
+      }
+
+      const { error: upsertErr } = await supabase
+        .from("users")
+        .upsert(row, { onConflict: "integration_id,external_id" });
+
+      if (!upsertErr) upsertedCount++;
     }
 
-    // Remove stale users no longer returned by the adapter (e.g. unlicensed
-    // Microsoft users that were synced previously but are now filtered out).
-    await supabase
-      .from("users")
-      .delete()
-      .eq("integration_id", integration.id)
-      .lt("synced_at", now);
+    // Only clean up stale users if upserts actually succeeded —
+    // prevents wiping all users when the DB schema is out of sync
+    if (upsertedCount > 0) {
+      await supabase
+        .from("users")
+        .delete()
+        .eq("integration_id", integration.id)
+        .lt("synced_at", now);
+    }
 
     // Update integration last_synced_at
     await supabase
