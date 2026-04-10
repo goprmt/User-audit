@@ -7,6 +7,11 @@ export interface NormalizedUser {
   isActive: boolean;
   lastSeenAt: string | null; // ISO timestamp
   createdAt?: string | null; // ISO timestamp — maps to external_created_at in DB
+  /**
+   * Additional email addresses for this user (e.g. Google alias / nonEditableAlias).
+   * Sync will upsert these into the user_aliases table automatically.
+   */
+  aliases?: string[];
 }
 
 /** Every integration adapter must implement this */

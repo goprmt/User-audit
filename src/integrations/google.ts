@@ -22,6 +22,10 @@ interface GoogleUser {
   lastLoginTime?: string;
   creationTime?: string;
   isEnrolledIn2Sv?: boolean;
+  /** Domain-managed alias addresses */
+  aliases?: string[];
+  /** External (non-editable) alias addresses, e.g. legacy Google Apps addresses */
+  nonEditableAliases?: string[];
   [key: string]: unknown;
 }
 
@@ -125,6 +129,16 @@ export class GoogleAdapter implements IntegrationAdapter {
       const data = (await res.json()) as GoogleListResponse;
 
       for (const u of data.users ?? []) {
+        // Collect all non-primary email addresses for this user.
+        // `aliases` = domain-managed aliases; `nonEditableAliases` = external/legacy ones.
+        const primaryLower = (u.primaryEmail ?? "").toLowerCase();
+        const aliases = [
+          ...(u.aliases ?? []),
+          ...(u.nonEditableAliases ?? []),
+        ]
+          .map(a => a.toLowerCase())
+          .filter(a => a && a !== primaryLower);
+
         allUsers.push({
           externalId: u.id,
           email: u.primaryEmail ?? "",
@@ -133,6 +147,7 @@ export class GoogleAdapter implements IntegrationAdapter {
           isActive: !u.suspended,
           lastSeenAt: u.lastLoginTime ?? null,
           createdAt: u.creationTime ?? null,
+          aliases: aliases.length > 0 ? aliases : undefined,
         });
       }
 

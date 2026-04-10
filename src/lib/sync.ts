@@ -89,6 +89,29 @@ export async function runSync(
         .lt("synced_at", now);
     }
 
+    // Sync adapter-provided aliases (e.g. Google alias / nonEditableAlias) into
+    // user_aliases. This is additive — manually-created aliases are never removed.
+    const usersWithAliases = users.filter(u => u.aliases && u.aliases.length > 0);
+    for (const u of usersWithAliases) {
+      for (const alias of u.aliases!) {
+        // Silently skip failures (e.g. if the migration hasn't been run yet)
+        try {
+          await supabase
+            .from("user_aliases")
+            .upsert(
+              {
+                tenant_id: integration.tenant_id,
+                primary_email: u.email.toLowerCase(),
+                alias_email: alias.toLowerCase(),
+              },
+              { onConflict: "tenant_id,alias_email" }
+            );
+        } catch {
+          // non-fatal — alias table may not exist on older deployments
+        }
+      }
+    }
+
     // Update integration last_synced_at
     await supabase
       .from("integrations")
