@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // Check adapter exists
     if (!getAdapter(input.appName)) {
       return NextResponse.json(
-        { data: null, error: `Unsupported app: "${input.appName}". Supported: JumpCloud` },
+        { data: null, error: `Unsupported app: "${input.appName}"` },
         { status: 400 }
       );
     }

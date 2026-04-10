@@ -5,6 +5,7 @@ import { GoogleAdapter } from "./google";
 import { DropboxAdapter } from "./dropbox";
 import { SlackAdapter } from "./slack";
 import { HubSpotAdapter } from "./hubspot";
+import { CsvAdapter } from "./csv";
 
 const adapters: Record<string, IntegrationAdapter> = {};
 
@@ -19,6 +20,7 @@ register(new GoogleAdapter());
 register(new DropboxAdapter());
 register(new SlackAdapter());
 register(new HubSpotAdapter());
+register(new CsvAdapter());
 
 // ── Public API ─────────────────────────────────────────────
 

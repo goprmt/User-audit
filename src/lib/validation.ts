@@ -39,6 +39,25 @@ export const updateIntegrationSchema = z.object({
   extraConfig: z.record(z.unknown()).optional(),
 });
 
+// ─── CSV Upload ────────────────────────────────────────────
+
+export const csvUserSchema = z.object({
+  email: z.string().email(),
+  displayName: z.string().nullable().optional(),
+  licenseType: z.string().nullable().optional(),
+  isActive: z.boolean().default(true),
+  lastSeenAt: z.string().nullable().optional(),
+  createdAt: z.string().nullable().optional(),
+  externalId: z.string().optional(),
+});
+
+export const csvUploadSchema = z.object({
+  integrationId: z.string().uuid(),
+  users: z.array(csvUserSchema).min(1).max(50000),
+});
+
+export type CsvUserInput = z.infer<typeof csvUserSchema>;
+
 // ─── User query filters ────────────────────────────────────
 
 export const usersQuerySchema = z.object({
