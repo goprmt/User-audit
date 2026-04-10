@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdapter } from "@/integrations";
-import { decrypt } from "@/lib/crypto";
+import { decrypt, encrypt } from "@/lib/crypto";
 import type { IntegrationRow, NormalizedUser } from "@/types";
 
 export interface SyncResult {
@@ -36,9 +36,21 @@ export async function runSync(
     }
 
     const apiKey = decrypt(integration.api_key_encrypted);
+    const extraConfig = integration.extra_config ?? {};
     const baseUrl =
-      (integration.extra_config as Record<string, string>)?.baseUrl ?? undefined;
-    const users: NormalizedUser[] = await adapter.fetchUsers(apiKey, baseUrl, integration.extra_config ?? {});
+      (extraConfig as Record<string, string>)?.baseUrl ?? undefined;
+    const users: NormalizedUser[] = await adapter.fetchUsers(apiKey, baseUrl, extraConfig);
+
+    // If the adapter rotated credentials (e.g. Slack), persist the new value
+    if (adapter.getUpdatedApiKey) {
+      const newApiKey = adapter.getUpdatedApiKey();
+      if (newApiKey) {
+        await supabase
+          .from("integrations")
+          .update({ api_key_encrypted: encrypt(newApiKey) })
+          .eq("id", integration.id);
+      }
+    }
 
     // Upsert users (conflict on integration_id + external_id)
     const now = new Date().toISOString();
@@ -59,6 +71,14 @@ export async function runSync(
         { onConflict: "integration_id,external_id" }
       );
     }
+
+    // Remove stale users no longer returned by the adapter (e.g. unlicensed
+    // Microsoft users that were synced previously but are now filtered out).
+    await supabase
+      .from("users")
+      .delete()
+      .eq("integration_id", integration.id)
+      .lt("synced_at", now);
 
     // Update integration last_synced_at
     await supabase

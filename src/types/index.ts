@@ -12,7 +12,17 @@ export interface NormalizedUser {
 /** Every integration adapter must implement this */
 export interface IntegrationAdapter {
   readonly appName: string;
-  fetchUsers(apiKey: string, baseUrl?: string, extraConfig?: Record<string, unknown>): Promise<NormalizedUser[]>;
+  fetchUsers(
+    apiKey: string,
+    baseUrl?: string,
+    extraConfig?: Record<string, unknown>
+  ): Promise<NormalizedUser[]>;
+  /**
+   * Adapters that rotate credentials (e.g. Slack's refresh token rotation)
+   * should return the updated API key blob after fetchUsers completes.
+   * The sync orchestrator will persist the new value to the DB.
+   */
+  getUpdatedApiKey?(): string | null;
 }
 
 /** Consistent API response shape */
